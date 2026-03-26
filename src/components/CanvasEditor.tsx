@@ -1,11 +1,15 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Image as KonvaImage, Text, Rect, Line } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Text, Rect, Line, Group } from 'react-konva';
 import type Konva from 'konva';
 import type { CertificateField, TemplateData, DataRow } from '@/types';
 
 // Width allocated for each text field in template coordinate space.
 // Large enough to avoid clipping long text; alignment anchors to field.x.
 const FIELD_WIDTH_PTS = 1000;
+// Distance in screen pixels within which a field snaps to an alignment guide.
+const SNAP_THRESHOLD_PX = 8;
+
+interface SnapLine { type: 'v' | 'h'; pos: number; }
 
 function getDisplayX(field: CertificateField): number {
   switch (field.textAlign) {
@@ -13,6 +17,12 @@ function getDisplayX(field: CertificateField): number {
     case 'right':  return field.x - FIELD_WIDTH_PTS;
     default:       return field.x; // left
   }
+}
+
+function getAlignmentOffset(align: CertificateField['textAlign']): number {
+  if (align === 'center') return FIELD_WIDTH_PTS / 2;
+  if (align === 'right') return FIELD_WIDTH_PTS;
+  return 0;
 }
 
 interface Props {
@@ -39,6 +49,7 @@ export function CanvasEditor({
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
+  const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
 
   useEffect(() => {
     const img = new window.Image();
@@ -78,6 +89,82 @@ export function CanvasEditor({
     onAddField(pointer.x / scale, pointer.y / scale);
   }, [onAddField, scale]);
 
+  const handleGroupDragMove = useCallback((
+    e: Konva.KonvaEventObject<DragEvent>,
+    field: CertificateField,
+  ) => {
+    const node = e.target;
+    const alignOffset = getAlignmentOffset(field.textAlign);
+    const anchorX = node.x() / scale + alignOffset;
+    const anchorY = node.y() / scale;
+
+    // Snap targets: canvas centre + all other fields' anchor positions
+    const snapTargetsX: number[] = [
+      template.width / 2,
+      ...fields.filter(f => f.id !== field.id).map(f => f.x),
+    ];
+    const snapTargetsY: number[] = [
+      template.height / 2,
+      ...fields.filter(f => f.id !== field.id).map(f => f.y),
+    ];
+
+    const newSnapLines: SnapLine[] = [];
+    let snappedDisplayX = node.x() / scale;
+    let snappedY = anchorY;
+
+    for (const tx of snapTargetsX) {
+      if (Math.abs((anchorX - tx) * scale) < SNAP_THRESHOLD_PX) {
+        snappedDisplayX = tx - alignOffset;
+        newSnapLines.push({ type: 'v', pos: tx * scale });
+        break;
+      }
+    }
+    for (const ty of snapTargetsY) {
+      if (Math.abs((anchorY - ty) * scale) < SNAP_THRESHOLD_PX) {
+        snappedY = ty;
+        newSnapLines.push({ type: 'h', pos: ty * scale });
+        break;
+      }
+    }
+
+    node.x(snappedDisplayX * scale);
+    node.y(snappedY * scale);
+    setSnapLines(newSnapLines);
+  }, [fields, scale, template.width, template.height]);
+
+  // Arrow-key nudging
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedFieldId) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      const step = e.shiftKey ? 10 : 1;
+      let dx = 0, dy = 0;
+      switch (e.key) {
+        case 'ArrowLeft':  dx = -step; break;
+        case 'ArrowRight': dx =  step; break;
+        case 'ArrowUp':    dy = -step; break;
+        case 'ArrowDown':  dy =  step; break;
+        default: return;
+      }
+      e.preventDefault();
+      const field = fields.find(f => f.id === selectedFieldId);
+      if (!field) return;
+      onFieldMove(selectedFieldId, field.x + dx, field.y + dy);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedFieldId, fields, onFieldMove]);
+
+  const handleGroupDragEnd = useCallback((
+    e: Konva.KonvaEventObject<DragEvent>,
+    field: CertificateField,
+  ) => {
+    setSnapLines([]);
+    const alignOffset = getAlignmentOffset(field.textAlign);
+    onFieldMove(field.id, e.target.x() / scale + alignOffset, e.target.y() / scale);
+  }, [scale, onFieldMove]);
+
   const currentRow = dataRows[previewIndex];
 
   return (
@@ -103,66 +190,83 @@ export function CanvasEditor({
             const isSelected = field.id === selectedFieldId;
             const displayX = getDisplayX(field);
             const lineHeight = field.fontSize * 1.25;
+            // X position of the anchor line relative to the group's origin
+            const anchorOffsetX = (field.x - displayX) * scale;
 
-            return [
-              // Selection outline – a dashed rect around the rendered text area
-              isSelected && (
-                <Rect
-                  key={`sel-rect-${field.id}`}
-                  x={displayX * scale}
-                  y={field.y * scale}
-                  width={FIELD_WIDTH_PTS * scale}
-                  height={lineHeight * scale}
-                  stroke="#3b82f6"
-                  strokeWidth={1.5}
-                  dash={[5, 4]}
-                  fill="rgba(59,130,246,0.05)"
-                  listening={false}
-                />
-              ),
-              // Anchor guide line – shows exactly where field.x is
-              isSelected && (
-                <Line
-                  key={`sel-line-${field.id}`}
-                  points={[
-                    field.x * scale, (field.y - 10) * scale,
-                    field.x * scale, (field.y + lineHeight + 10) * scale,
-                  ]}
-                  stroke="#3b82f6"
-                  strokeWidth={1}
-                  dash={[3, 3]}
-                  opacity={0.7}
-                  listening={false}
-                />
-              ),
-              // The text itself (width + align makes alignment actually work)
-              <Text
+            return (
+              <Group
                 key={field.id}
                 x={displayX * scale}
                 y={field.y * scale}
-                width={FIELD_WIDTH_PTS * scale}
-                text={text}
-                fontSize={field.fontSize * scale}
-                fontFamily={field.fontFamily}
-                fontStyle={field.fontWeight}
-                fill={field.fontColor}
-                align={field.textAlign}
                 draggable
                 onClick={(e) => {
                   e.cancelBubble = true;
                   onFieldSelect(field.id);
                 }}
-                onDragEnd={(e) => {
-                  // Convert dragged displayX back to the alignment anchor
-                  const newDisplayX = e.target.x() / scale;
-                  let newAnchorX = newDisplayX;
-                  if (field.textAlign === 'center') newAnchorX += FIELD_WIDTH_PTS / 2;
-                  else if (field.textAlign === 'right') newAnchorX += FIELD_WIDTH_PTS;
-                  onFieldMove(field.id, newAnchorX, e.target.y() / scale);
+                onDragStart={() => {
+                  if (field.id !== selectedFieldId) onFieldSelect(field.id);
                 }}
-              />,
-            ];
+                onDragMove={(e) => handleGroupDragMove(e, field)}
+                onDragEnd={(e) => handleGroupDragEnd(e, field)}
+              >
+                {isSelected && (
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={FIELD_WIDTH_PTS * scale}
+                    height={lineHeight * scale}
+                    stroke="#3b82f6"
+                    strokeWidth={1.5}
+                    dash={[5, 4]}
+                    fill="rgba(59,130,246,0.05)"
+                    listening={false}
+                  />
+                )}
+                {isSelected && (
+                  <Line
+                    points={[
+                      anchorOffsetX, -10 * scale,
+                      anchorOffsetX, (lineHeight + 10) * scale,
+                    ]}
+                    stroke="#3b82f6"
+                    strokeWidth={1}
+                    dash={[3, 3]}
+                    opacity={0.7}
+                    listening={false}
+                  />
+                )}
+                <Text
+                  x={0}
+                  y={0}
+                  width={FIELD_WIDTH_PTS * scale}
+                  height={lineHeight * scale}
+                  text={text}
+                  fontSize={field.fontSize * scale}
+                  fontFamily={`'${field.fontFamily}'`}
+                  fontStyle={field.fontWeight}
+                  fill={field.fontColor}
+                  align={field.textAlign}
+                  verticalAlign="middle"
+                  listening={true}
+                />
+              </Group>
+            );
           })}
+          {snapLines.map((line, i) => (
+            <Line
+              key={`snap-${i}`}
+              points={
+                line.type === 'v'
+                  ? [line.pos, 0, line.pos, stageSize.height]
+                  : [0, line.pos, stageSize.width, line.pos]
+              }
+              stroke="#22c55e"
+              strokeWidth={1}
+              dash={[6, 3]}
+              opacity={0.8}
+              listening={false}
+            />
+          ))}
         </Layer>
       </Stage>
     </div>

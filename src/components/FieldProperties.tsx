@@ -1,18 +1,29 @@
 import { Trash2 } from 'lucide-react';
+import { useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { CertificateField } from '@/types';
-import { FONT_FAMILIES } from '@/types';
+import type { CertificateField, CustomFont } from '@/types';
+import { FontPickerDialog } from '@/components/FontPickerDialog';
 
 interface Props {
   field: CertificateField;
   onUpdate: (id: string, updates: Partial<CertificateField>) => void;
   onRemove: (id: string) => void;
+  autoFocusName?: boolean;
+  onNameFocused?: () => void;
+  customFonts: CustomFont[];
+  onAddCustomFont: (font: CustomFont) => void;
 }
 
-export function FieldProperties({ field, onUpdate, onRemove }: Props) {
+export function FieldProperties({ field, onUpdate, onRemove, autoFocusName, onNameFocused, customFonts, onAddCustomFont }: Props) {
+  // Select all name text on new-field creation so typing immediately replaces the default name
+  useEffect(() => {
+    if (!autoFocusName) return;
+    const el = document.getElementById('field-name') as HTMLInputElement | null;
+    if (el) el.select();
+  }, []); // runs once on mount; component is keyed by field id
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-card">
       <div className="flex items-center justify-between">
@@ -33,25 +44,20 @@ export function FieldProperties({ field, onUpdate, onRemove }: Props) {
           id="field-name"
           value={field.name}
           onChange={(e) => onUpdate(field.id, { name: e.target.value })}
+          onFocus={() => onNameFocused?.()}
+          autoFocus={autoFocusName}
           className="h-8 text-sm"
         />
       </div>
 
       <div className="space-y-2">
         <Label className="text-xs">Font Family</Label>
-        <Select
+        <FontPickerDialog
           value={field.fontFamily}
-          onValueChange={(v) => { if (v) onUpdate(field.id, { fontFamily: v }); }}
-        >
-          <SelectTrigger className="h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FONT_FAMILIES.map((f) => (
-              <SelectItem key={f} value={f}>{f}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={(v) => onUpdate(field.id, { fontFamily: v })}
+          customFonts={customFonts}
+          onAddCustomFont={onAddCustomFont}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">

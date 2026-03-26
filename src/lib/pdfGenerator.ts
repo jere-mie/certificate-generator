@@ -1,19 +1,15 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import JSZip from 'jszip';
 import type { CertificateField, TemplateData, DataRow } from '@/types';
-import { PDF_FONT_MAP } from '@/types';
+import { PDF_FONT_MAP, PDF_STANDARD_FONTS } from '@/types';
+import { isCustomFont, getCustomFontBytes } from './fontAssets';
 
 function hexToRgb(hex: string) {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
   const b = parseInt(hex.slice(5, 7), 16) / 255;
   return rgb(r, g, b);
-}
-
-function getFontKey(family: string, weight: string): keyof typeof StandardFonts {
-  const key = weight === 'bold' ? `${family}-bold` : family;
-  const mapped = PDF_FONT_MAP[key] ?? 'Helvetica';
-  return mapped as keyof typeof StandardFonts;
 }
 
 async function createSingleCertificate(
@@ -36,6 +32,8 @@ async function createSingleCertificate(
     page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
   }
 
+  pdfDoc.registerFontkit(fontkit);
+
   const page = pdfDoc.getPages()[0];
   const { width: pageWidth, height: pageHeight } = page.getSize();
 
@@ -45,11 +43,22 @@ async function createSingleCertificate(
     const text = row[field.name] ?? '';
     if (!text) continue;
 
-    const fontKey = getFontKey(field.fontFamily, field.fontWeight);
-    if (!fontCache[fontKey]) {
-      fontCache[fontKey] = await pdfDoc.embedFont(StandardFonts[fontKey]);
+    const cacheKey = `${field.fontFamily}__${field.fontWeight}`;
+    if (!fontCache[cacheKey]) {
+      if (isCustomFont(field.fontFamily)) {
+        const bytes = await getCustomFontBytes(field.fontFamily, field.fontWeight);
+        fontCache[cacheKey] = await pdfDoc.embedFont(bytes);
+      } else if (PDF_STANDARD_FONTS.has(field.fontFamily)) {
+        const stdKey = field.fontWeight === 'bold'
+          ? `${field.fontFamily}-bold`
+          : field.fontFamily;
+        const mapped = PDF_FONT_MAP[stdKey] ?? 'Helvetica';
+        fontCache[cacheKey] = await pdfDoc.embedFont(StandardFonts[mapped as keyof typeof StandardFonts]);
+      } else {
+        fontCache[cacheKey] = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      }
     }
-    const font = fontCache[fontKey];
+    const font = fontCache[cacheKey];
 
     const scaleX = pageWidth / template.width;
     const scaleY = pageHeight / template.height;

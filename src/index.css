@@ -3,6 +3,47 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+/* Bundled fonts for canvas rendering and PDF embedding */
+@import "@fontsource/roboto/400.css";
+@import "@fontsource/roboto/700.css";
+@import "@fontsource/open-sans/400.css";
+@import "@fontsource/open-sans/700.css";
+@import "@fontsource/lato/400.css";
+@import "@fontsource/lato/700.css";
+@import "@fontsource/montserrat/400.css";
+@import "@fontsource/montserrat/700.css";
+@import "@fontsource/poppins/400.css";
+@import "@fontsource/poppins/700.css";
+@import "@fontsource/raleway/400.css";
+@import "@fontsource/raleway/700.css";
+@import "@fontsource/oswald/400.css";
+@import "@fontsource/oswald/700.css";
+@import "@fontsource/nunito/400.css";
+@import "@fontsource/nunito/700.css";
+@import "@fontsource/josefin-sans/400.css";
+@import "@fontsource/josefin-sans/700.css";
+@import "@fontsource/quicksand/400.css";
+@import "@fontsource/quicksand/700.css";
+@import "@fontsource/merriweather/400.css";
+@import "@fontsource/merriweather/700.css";
+@import "@fontsource/playfair-display/400.css";
+@import "@fontsource/playfair-display/700.css";
+@import "@fontsource/eb-garamond/400.css";
+@import "@fontsource/eb-garamond/700.css";
+@import "@fontsource/libre-baskerville/400.css";
+@import "@fontsource/libre-baskerville/700.css";
+@import "@fontsource/pt-serif/400.css";
+@import "@fontsource/pt-serif/700.css";
+@import "@fontsource/cormorant-garamond/400.css";
+@import "@fontsource/cormorant-garamond/700.css";
+@import "@fontsource/cinzel/400.css";
+@import "@fontsource/cinzel/700.css";
+@import "@fontsource/dancing-script/400.css";
+@import "@fontsource/dancing-script/700.css";
+@import "@fontsource/great-vibes/400.css";
+@import "@fontsource/pacifico/400.css";
+@import "@fontsource/lobster/400.css";
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
