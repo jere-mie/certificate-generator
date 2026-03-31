@@ -9,7 +9,6 @@ import { DataEntry } from '@/components/DataEntry';
 import { ExportPanel } from '@/components/ExportPanel';
 import { ProjectManager } from '@/components/ProjectManager';
 import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Award, ImageIcon, Loader2 } from 'lucide-react';
 import { renderPdfPageToImage } from '@/lib/pdfPreview';
@@ -143,28 +142,13 @@ function App() {
                 previewIndex={previewIndex}
               />
 
-              <Tabs defaultValue="data" className="w-full">
-                <TabsList className="w-full justify-start">
-                  <TabsTrigger value="data">Data</TabsTrigger>
-                  <TabsTrigger value="export">Export</TabsTrigger>
-                </TabsList>
-                <TabsContent value="data" className="border rounded-lg p-4 mt-2">
-                  <DataEntry
-                    fields={fields}
-                    dataRows={dataRows}
-                    onDataChange={setDataRows}
-                  />
-                </TabsContent>
-                <TabsContent value="export" className="border rounded-lg p-4 mt-2">
-                  <ExportPanel
-                    template={template}
-                    fields={fields}
-                    dataRows={dataRows}
-                    previewIndex={previewIndex}
-                    onPreviewIndexChange={setPreviewIndex}
-                  />
-                </TabsContent>
-              </Tabs>
+              <div className="border rounded-lg p-4">
+                <DataEntry
+                  fields={fields}
+                  dataRows={dataRows}
+                  onDataChange={setDataRows}
+                />
+              </div>
             </div>
 
             {/* Right: Sidebar */}
